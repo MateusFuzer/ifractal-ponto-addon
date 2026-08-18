@@ -84,6 +84,18 @@ function getBancoDeHoras(referencia: Date): number {
   return saldo
 }
 
+// Tipo dos dados sincronizados
+type DayStatus = "idle" | "loading" | "success" | "error"
+type DaySyncData = {
+  status: DayStatus
+  valor?: string
+}
+
+// Chave única para um dia: "month-day"
+function dayKey(monthIndex: number, day: number) {
+  return `${monthIndex}-${day}`
+}
+
 // Os 12 meses são memoizados: abrir/fechar o modal não precisa renderizar de novo
 // os ~365 botões de dia, o que deixava a interação travada.
 const GradeDeMeses = React.memo(function GradeDeMeses({
@@ -102,15 +114,73 @@ const GradeDeMeses = React.memo(function GradeDeMeses({
 
   const mesAtualRef = React.useRef<HTMLDivElement>(null)
 
+  // Estado de sincronização por dia
+  const [daySync, setDaySync] = React.useState<Record<string, DaySyncData>>({})
+  const [syncLoading, setSyncLoading] = React.useState<Record<number, boolean>>({})
+  const [lastSync, setLastSync] = React.useState<Record<number, string>>({})
+
   React.useEffect(() => {
     mesAtualRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
   }, [])
+
+  const sincronizar = React.useCallback(async (monthIndex: number) => {
+    // Descobre dias úteis do mês
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate()
+    const diasUteis: number[] = []
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, monthIndex, d)
+      if (date.getDay() !== 0 && date.getDay() !== 6) {
+        diasUteis.push(d)
+      }
+    }
+
+    // Marca todos como loading
+    setSyncLoading((prev) => ({ ...prev, [monthIndex]: true }))
+    setDaySync((prev) => {
+      const next = { ...prev }
+      for (const d of diasUteis) {
+        next[dayKey(monthIndex, d)] = { status: "loading" }
+      }
+      return next
+    })
+
+    // Faz uma requisição por dia (em paralelo)
+    const results = await Promise.allSettled(
+      diasUteis.map(async (d) => {
+        const res = await fetch(`/api/sync?year=${year}&month=${monthIndex}&day=${d}`)
+        if (!res.ok) throw new Error("Falha")
+        const data = await res.json()
+        return { day: d, valor: data.valor as string }
+      })
+    )
+
+    // Atualiza estado por dia
+    setDaySync((prev) => {
+      const next = { ...prev }
+      for (let i = 0; i < diasUteis.length; i++) {
+        const d = diasUteis[i]
+        const result = results[i]
+        if (result.status === "fulfilled") {
+          next[dayKey(monthIndex, d)] = { status: "success", valor: result.value.valor }
+        } else {
+          next[dayKey(monthIndex, d)] = { status: "error" }
+        }
+      }
+      return next
+    })
+
+    setSyncLoading((prev) => ({ ...prev, [monthIndex]: false }))
+    setLastSync((prev) => ({ ...prev, [monthIndex]: new Date().toISOString() }))
+  }, [year])
 
   return (
     <div className="grid h-full grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {months.map((month) => {
         const nomeMes = month.toLocaleString("pt-BR", { month: "long" })
         const isAtual = month.getMonth() === mesAtual
+        const monthIndex = month.getMonth()
+        const isLoading = syncLoading[monthIndex] ?? false
+        const ultimaSync = lastSync[monthIndex]
 
         return (
           <div
@@ -137,8 +207,12 @@ const GradeDeMeses = React.memo(function GradeDeMeses({
               onDayClick={onSelecionarDia}
               components={{
                 DayButton: ({ children, modifiers, day, className, ...props }) => {
-                  const valor = getValorDoDia(day.date)
+                  const key = dayKey(monthIndex, day.date.getDate())
+                  const sync = daySync[key]
+                  const valor = sync?.valor ?? getValorDoDia(day.date)
                   const abaixoDaJornada = valor && paraMinutos(valor) < JORNADA_MINUTOS
+                  const isLoadingDay = sync?.status === "loading"
+                  const isError = sync?.status === "error"
 
                   return (
                     <CalendarDayButton
@@ -147,13 +221,28 @@ const GradeDeMeses = React.memo(function GradeDeMeses({
                       {...props}
                       className={cn(
                         className,
-                        "cursor-pointer group-data-[focused=true]/day:border-transparent group-data-[focused=true]/day:ring-0"
+                        "cursor-pointer group-data-[focused=true]/day:border-transparent group-data-[focused=true]/day:ring-0",
+                        isError && "bg-red-50"
                       )}
                     >
-                      <span className="text-sm font-bold leading-none text-zinc-800">
+                      <span className={cn(
+                        "text-sm font-bold leading-none",
+                        isError ? "text-red-600" : "text-zinc-800"
+                      )}>
                         {children}
                       </span>
-                      {!modifiers.outside && valor && (
+                      {!modifiers.outside && isLoadingDay && (
+                        <svg className="mt-1 size-3 animate-spin text-zinc-400" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      )}
+                      {!modifiers.outside && !isLoadingDay && isError && (
+                        <span className="mt-1 text-[9px] font-semibold leading-none text-red-500">
+                          erro
+                        </span>
+                      )}
+                      {!modifiers.outside && !isLoadingDay && !isError && valor && (
                         <span className={cn(
                           "mt-1 text-[10px] font-semibold leading-none",
                           abaixoDaJornada ? "text-red-600" : "text-green-600"
@@ -168,11 +257,30 @@ const GradeDeMeses = React.memo(function GradeDeMeses({
             />
 
             <div className="mt-4 flex w-full flex-col items-center gap-1">
-              <button className="w-full cursor-pointer rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-100">
-                Sincronizar
+              <button
+                disabled={isLoading}
+                onClick={() => sincronizar(monthIndex)}
+                className={cn(
+                  "w-full cursor-pointer rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-100",
+                  isLoading && "cursor-not-allowed opacity-60"
+                )}
+              >
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-1.5">
+                    <svg className="size-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Sincronizando...
+                  </span>
+                ) : (
+                  "Sincronizar"
+                )}
               </button>
               <span className="text-[10px] text-zinc-400">
-                Última sinc: {new Date(year, month.getMonth(), 1).toLocaleDateString("pt-BR")}
+                {ultimaSync
+                  ? `Última sinc: ${new Date(ultimaSync).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`
+                  : "Não sincronizado"}
               </span>
             </div>
           </div>
