@@ -299,7 +299,30 @@ export function CalendarCustomDays() {
   const [diaSelecionado, setDiaSelecionado] = React.useState<Date | null>(null)
   const pontosDoDiaSelecionado = diaSelecionado ? getPontosDoDia(diaSelecionado) : null
 
-  const selecionarDia = React.useCallback((date: Date) => setDiaSelecionado(date), [])
+  const [modalSync, setModalSync] = React.useState<"idle" | "loading" | "success" | "error">("idle")
+  const [modalSyncData, setModalSyncData] = React.useState<string | null>(null)
+
+  const selecionarDia = React.useCallback((date: Date) => {
+    setDiaSelecionado(date)
+    setModalSync("idle")
+    setModalSyncData(null)
+  }, [])
+
+  const sincronizarDia = React.useCallback(async () => {
+    if (!diaSelecionado) return
+    setModalSync("loading")
+    try {
+      const res = await fetch(
+        `/api/sync?year=${diaSelecionado.getFullYear()}&month=${diaSelecionado.getMonth()}&day=${diaSelecionado.getDate()}`
+      )
+      if (!res.ok) throw new Error("Falha")
+      const data = await res.json()
+      setModalSyncData(data.valor)
+      setModalSync("success")
+    } catch {
+      setModalSync("error")
+    }
+  }, [diaSelecionado])
 
   return (
     <div className="flex h-full w-full flex-col gap-4 px-4 py-6 md:px-8">
@@ -421,6 +444,37 @@ export function CalendarCustomDays() {
         ) : (
           <p className="mt-4 text-sm font-semibold text-zinc-500">
             Dia de folga, sem registro de ponto.
+          </p>
+        )}
+
+        <button
+          disabled={modalSync === "loading"}
+          onClick={sincronizarDia}
+          className={cn(
+            "mt-4 w-full cursor-pointer rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100",
+            modalSync === "loading" && "cursor-not-allowed opacity-60"
+          )}
+        >
+          {modalSync === "loading" ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Sincronizando...
+            </span>
+          ) : (
+            "Sincronizar dia"
+          )}
+        </button>
+        {modalSync === "success" && modalSyncData && (
+          <p className="mt-2 text-center text-xs font-semibold text-green-600">
+            Sincronizado: {modalSyncData}
+          </p>
+        )}
+        {modalSync === "error" && (
+          <p className="mt-2 text-center text-xs font-semibold text-red-600">
+            Erro ao sincronizar este dia.
           </p>
         )}
       </Dialog>
