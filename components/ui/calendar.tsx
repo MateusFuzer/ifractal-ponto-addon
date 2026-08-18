@@ -199,6 +199,13 @@ function CalendarDayButton({
 }: React.ComponentProps<typeof DayButton> & { locale?: Partial<Locale> }) {
   const defaultClassNames = getDefaultClassNames()
 
+  // O react-day-picker tipa os handlers para HTMLButtonElement, enquanto o Button
+  // do react-aria usa os próprios tipos de evento. Alinhamos os tipos aqui.
+  const buttonProps = props as unknown as Omit<
+    React.ComponentProps<typeof Button>,
+    "className"
+  >
+
   const ref = React.useRef<HTMLButtonElement>(null)
   React.useEffect(() => {
     if (modifiers.focused) ref.current?.focus()
@@ -223,7 +230,7 @@ function CalendarDayButton({
         defaultClassNames.day,
         className
       )}
-      {...props}
+      {...buttonProps}
     />
   )
 }

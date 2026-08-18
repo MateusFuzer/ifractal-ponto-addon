@@ -4,6 +4,8 @@ import * as React from "react"
 
 import { Calendar, CalendarDayButton } from "@/components/ui/calendar"
 import { Card, CardContent } from "@/components/ui/card"
+import { Dialog, DialogTitle } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 
 // Função para gerar uma variação determinística e realista de horas trabalhadas por dia
 function getValorDoDia(date: Date): string | null {
@@ -82,12 +84,88 @@ function getBancoDeHoras(referencia: Date): number {
   return saldo
 }
 
+// Os 12 meses são memoizados: abrir/fechar o modal não precisa renderizar de novo
+// os ~365 botões de dia, o que deixava a interação travada.
+const GradeDeMeses = React.memo(function GradeDeMeses({
+  year,
+  onSelecionarDia,
+}: {
+  year: number
+  onSelecionarDia: (date: Date) => void
+}) {
+  const months = React.useMemo(
+    () => Array.from({ length: 12 }, (_, index) => new Date(year, index, 1)),
+    [year]
+  )
+
+  return (
+    <div className="grid h-full grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {months.map((month) => {
+        const nomeMes = month.toLocaleString("pt-BR", { month: "long" })
+
+        return (
+          <div
+            key={month.toISOString()}
+            className="flex flex-col items-center rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 shadow-sm"
+          >
+            <div className="mb-4 text-center text-base font-bold capitalize text-zinc-800">
+              {nomeMes}
+            </div>
+
+            <Calendar
+              month={month}
+              numberOfMonths={1}
+              hideNavigation
+              disableNavigation
+              showOutsideDays={false}
+              className="w-full p-0"
+              onDayClick={onSelecionarDia}
+              components={{
+                DayButton: ({ children, modifiers, day, className, ...props }) => {
+                  const valor = getValorDoDia(day.date)
+                  return (
+                    <CalendarDayButton
+                      day={day}
+                      modifiers={modifiers}
+                      {...props}
+                      className={cn(
+                        className,
+                        // Sem destaque de dia "focado" pelo day-picker: cada mês tem o
+                        // seu próprio estado e sobravam bordas em vários meses ao mesmo
+                        // tempo. O foco real de teclado continua no focus-visible.
+                        "cursor-pointer group-data-[focused=true]/day:border-transparent group-data-[focused=true]/day:ring-0"
+                      )}
+                    >
+                      <span className="text-sm font-bold leading-none text-zinc-800">
+                        {children}
+                      </span>
+                      {!modifiers.outside && valor && (
+                        <span className="mt-1 text-[10px] font-semibold leading-none text-green-600">
+                          {valor}
+                        </span>
+                      )}
+                    </CalendarDayButton>
+                  )
+                },
+              }}
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+})
+
 export function CalendarCustomDays() {
   const hoje = new Date()
   const year = hoje.getFullYear()
-  const months = Array.from({ length: 12 }, (_, index) => new Date(year, index, 1))
   const pontosDeHoje = getPontosDoDia(hoje)
   const bancoDeHoras = getBancoDeHoras(hoje)
+
+  const [diaSelecionado, setDiaSelecionado] = React.useState<Date | null>(null)
+  const pontosDoDiaSelecionado = diaSelecionado ? getPontosDoDia(diaSelecionado) : null
+
+  const selecionarDia = React.useCallback((date: Date) => setDiaSelecionado(date), [])
 
   return (
     <div className="flex h-full w-full flex-col gap-4 px-4 py-6 md:px-8">
@@ -156,51 +234,62 @@ export function CalendarCustomDays() {
 
       <Card className="flex-1 border-0 bg-white/90 shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
         <CardContent className="h-full p-4 md:p-6">
-          <div className="grid h-full grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {months.map((month) => {
-              const nomeMes = month.toLocaleString("pt-BR", { month: "long" })
-
-              return (
-                <div
-                  key={month.toISOString()}
-                  className="flex flex-col items-center rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 shadow-sm"
-                >
-                  <div className="mb-4 text-center text-base font-bold capitalize text-zinc-800">
-                    {nomeMes}
-                  </div>
-
-                  <Calendar
-                    mode="single"
-                    month={month}
-                    numberOfMonths={1}
-                    hideNavigation
-                    disableNavigation
-                    showOutsideDays={false}
-                    className="w-full p-0"
-                    components={{
-                      DayButton: ({ children, modifiers, day, ...props }) => {
-                        const valor = getValorDoDia(day.date)
-                        return (
-                          <CalendarDayButton day={day} modifiers={modifiers} {...props}>
-                            <span className="text-sm font-bold leading-none text-zinc-800">
-                              {children}
-                            </span>
-                            {!modifiers.outside && valor && (
-                              <span className="mt-1 text-[10px] font-semibold leading-none text-green-600">
-                                {valor}
-                              </span>
-                            )}
-                          </CalendarDayButton>
-                        )
-                      },
-                    }}
-                  />
-                </div>
-              )
-            })}
-          </div>
+          <GradeDeMeses year={year} onSelecionarDia={selecionarDia} />
         </CardContent>
       </Card>
+
+      <Dialog
+        isOpen={diaSelecionado !== null}
+        onOpenChange={(aberto) => {
+          if (!aberto) setDiaSelecionado(null)
+        }}
+      >
+        <DialogTitle className="capitalize">
+          {diaSelecionado?.toLocaleDateString("pt-BR", {
+            weekday: "long",
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+          })}
+        </DialogTitle>
+
+        {pontosDoDiaSelecionado ? (
+          <div className="mt-4 flex flex-col gap-2">
+            {pontosDoDiaSelecionado.marcacoes.map((marcacao) => (
+              <div
+                key={marcacao.rotulo}
+                className="flex items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2"
+              >
+                <span className="text-xs font-semibold uppercase text-zinc-500">
+                  {marcacao.rotulo}
+                </span>
+                <span className="text-sm font-bold text-zinc-800">{marcacao.hora}</span>
+              </div>
+            ))}
+
+            <div className="mt-2 flex items-center justify-between border-t border-zinc-200 pt-3">
+              <span className="text-xs font-semibold uppercase text-zinc-500">Total</span>
+              <span className="text-sm font-bold text-green-600">
+                {pontosDoDiaSelecionado.valor}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase text-zinc-500">Saldo do dia</span>
+              <span
+                className={`text-sm font-bold ${
+                  pontosDoDiaSelecionado.saldo < 0 ? "text-red-600" : "text-green-600"
+                }`}
+              >
+                {formatarSaldo(pontosDoDiaSelecionado.saldo)}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm font-semibold text-zinc-500">
+            Dia de folga, sem registro de ponto.
+          </p>
+        )}
+      </Dialog>
     </div>
   )
 }
