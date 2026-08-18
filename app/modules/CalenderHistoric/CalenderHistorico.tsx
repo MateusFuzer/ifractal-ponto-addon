@@ -25,12 +25,135 @@ function getValorDoDia(date: Date): string | null {
   return `${hours}h ${minutes}m`
 }
 
+const JORNADA_MINUTOS = 8 * 60
+
+// Converte "8h 15m" em minutos
+function paraMinutos(valor: string): number {
+  const [horas, minutos] = valor.split(" ")
+  return Number(horas.replace("h", "")) * 60 + Number(minutos.replace("m", ""))
+}
+
+function formatarHora(minutos: number): string {
+  const h = Math.floor(minutos / 60)
+  const m = minutos % 60
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+}
+
+function formatarSaldo(minutos: number): string {
+  const sinal = minutos < 0 ? "-" : "+"
+  const absoluto = Math.abs(minutos)
+  return `${sinal}${Math.floor(absoluto / 60)}h ${String(absoluto % 60).padStart(2, "0")}m`
+}
+
+// Marcações do dia derivadas do total trabalhado (1h de almoço)
+function getPontosDoDia(date: Date) {
+  const valor = getValorDoDia(date)
+  if (!valor) return null
+
+  const trabalhado = paraMinutos(valor)
+  const entrada = 8 * 60
+  const saidaAlmoco = 12 * 60
+  const voltaAlmoco = 13 * 60
+  const saida = voltaAlmoco + (trabalhado - (saidaAlmoco - entrada))
+
+  return {
+    valor,
+    saldo: trabalhado - JORNADA_MINUTOS,
+    marcacoes: [
+      { rotulo: "Entrada", hora: formatarHora(entrada) },
+      { rotulo: "Saída almoço", hora: formatarHora(saidaAlmoco) },
+      { rotulo: "Volta almoço", hora: formatarHora(voltaAlmoco) },
+      { rotulo: "Saída", hora: formatarHora(saida) },
+    ],
+  }
+}
+
+// Saldo acumulado do início do ano até a data de referência
+function getBancoDeHoras(referencia: Date): number {
+  const cursor = new Date(referencia.getFullYear(), 0, 1)
+  let saldo = 0
+
+  while (cursor <= referencia) {
+    const valor = getValorDoDia(cursor)
+    if (valor) saldo += paraMinutos(valor) - JORNADA_MINUTOS
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return saldo
+}
+
 export function CalendarCustomDays() {
-  const year = new Date().getFullYear()
+  const hoje = new Date()
+  const year = hoje.getFullYear()
   const months = Array.from({ length: 12 }, (_, index) => new Date(year, index, 1))
+  const pontosDeHoje = getPontosDoDia(hoje)
+  const bancoDeHoras = getBancoDeHoras(hoje)
 
   return (
-    <div className="flex h-full w-full flex-col px-4 py-6 md:px-8">
+    <div className="flex h-full w-full flex-col gap-4 px-4 py-6 md:px-8">
+      <Card className="border-0 bg-white/90 shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
+        <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between md:p-6">
+          <div className="flex flex-col gap-3">
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Ponto de hoje
+              </span>
+              <p className="text-sm font-bold capitalize text-zinc-800">
+                {hoje.toLocaleDateString("pt-BR", {
+                  weekday: "long",
+                  day: "2-digit",
+                  month: "long",
+                })}
+              </p>
+            </div>
+
+            {pontosDeHoje ? (
+              <div className="flex flex-wrap items-center gap-3">
+                {pontosDeHoje.marcacoes.map((marcacao) => (
+                  <div
+                    key={marcacao.rotulo}
+                    className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2"
+                  >
+                    <span className="block text-[10px] font-semibold uppercase leading-none text-zinc-500">
+                      {marcacao.rotulo}
+                    </span>
+                    <span className="mt-1 block text-sm font-bold leading-none text-zinc-800">
+                      {marcacao.hora}
+                    </span>
+                  </div>
+                ))}
+                <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2">
+                  <span className="block text-[10px] font-semibold uppercase leading-none text-green-700">
+                    Trabalhado
+                  </span>
+                  <span className="mt-1 block text-sm font-bold leading-none text-green-700">
+                    {pontosDeHoje.valor}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm font-semibold text-zinc-500">Dia de folga, sem marcações.</p>
+            )}
+          </div>
+
+          <div className="flex flex-col items-start rounded-2xl border border-zinc-200 bg-zinc-50 px-5 py-4 md:items-end">
+            <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Banco de horas
+            </span>
+            <span
+              className={`mt-1 text-2xl font-bold leading-none ${
+                bancoDeHoras < 0 ? "text-red-600" : "text-green-600"
+              }`}
+            >
+              {formatarSaldo(bancoDeHoras)}
+            </span>
+            <span className="mt-1 text-[11px] font-medium text-zinc-500">
+              Acumulado em {year}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="flex-1 border-0 bg-white/90 shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
         <CardContent className="h-full p-4 md:p-6">
           <div className="grid h-full grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
