@@ -166,6 +166,15 @@ const GradeDeMeses = React.memo(function GradeDeMeses({
                 },
               }}
             />
+
+            <div className="mt-4 flex w-full flex-col items-center gap-1">
+              <button className="w-full cursor-pointer rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-100">
+                Sincronizar
+              </button>
+              <span className="text-[10px] text-zinc-400">
+                Última sinc: {new Date(year, month.getMonth(), 1).toLocaleDateString("pt-BR")}
+              </span>
+            </div>
           </div>
         )
       })}
