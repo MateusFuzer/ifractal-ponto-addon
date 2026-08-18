@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  password  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  pontos Ponto[]
+
+  @@map("users")
+}
+
+model Ponto {
+  id     String   @id @default(uuid())
+  userId String   @map("user_id")
+  date   DateTime @db.Date
+  valor  String   // "8h 15m"
+
+  entrada      String? // "08:00"
+  saidaAlmoco  String? @map("saida_almoco")
+  voltaAlmoco  String? @map("volta_almoco")
+  saida        String?
+
+  syncedAt DateTime @default(now()) @map("synced_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("pontos")
+}

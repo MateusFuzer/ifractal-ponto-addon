@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Roboto_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { CalendarCustomDays } from "./modules/CalenderHistoric/CalenderHistorico";
+import { PontoReminder } from "./modules/PontoReminder/PontoReminder";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
@@ -36,9 +37,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <header className="sticky top-0 z-40 h-16 w-full bg-zinc-200 shadow-sm">
                 <div className="h-full w-full flex items-center justify-between p-6">
                   <span className={`text-lg text-zinc-800 font-semibold ${roboto_mono.className}`}>Meu ponto</span>
-                  <button className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700">
-                    Registrar ponto
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <PontoReminder />
+                    <button className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700">
+                      Registrar ponto
+                    </button>
+                  </div>
                 </div>
               </header>
               <main className="flex flex-1 bg-zinc-100">
