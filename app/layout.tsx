@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Roboto_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Roboto_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import Image from "next/image";
+import { cn } from "@/lib/utils";
+import { CalendarCustomDays } from "./modules/CalenderHistoric/CalenderHistorico";
+
+const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,7 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", inter.variable)}
     >
       <body className="min-h-full flex flex-col">
           <div className="flex flex-col h-full w-full">
@@ -37,7 +41,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 </div>
               </header>
               <main className="flex flex-1 bg-zinc-100">
-                {children}
+                <CalendarCustomDays/>
               </main>
           </div>
       </body>
