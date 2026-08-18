@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Roboto_Mono, Inter } from "next/font/google";
 import "./globals.css";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { CalendarCustomDays } from "./modules/CalenderHistoric/CalenderHistorico";
 
@@ -34,10 +33,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
           <div className="flex flex-col h-full w-full">
-              <header className="h-[6%] w-full bg-zinc-200">
-                <div className="h-full w-full flex items-center gap-2">
-                  <Image src={'/logo.png'} alt="Logo" width={50} height={50}/>
-                  <span className={`text-zinc-800 ${roboto_mono.className}`}>Meu pontinho</span>
+              <header className="sticky top-0 z-40 h-16 w-full bg-zinc-200 shadow-sm">
+                <div className="h-full w-full flex items-center justify-between p-6">
+                  <span className={`text-lg text-zinc-800 font-semibold ${roboto_mono.className}`}>Meu ponto</span>
+                  <button className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700">
+                    Registrar ponto
+                  </button>
                 </div>
               </header>
               <main className="flex flex-1 bg-zinc-100">
