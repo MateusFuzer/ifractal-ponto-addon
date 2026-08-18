@@ -88,9 +88,11 @@ function getBancoDeHoras(referencia: Date): number {
 // os ~365 botões de dia, o que deixava a interação travada.
 const GradeDeMeses = React.memo(function GradeDeMeses({
   year,
+  mesAtual,
   onSelecionarDia,
 }: {
   year: number
+  mesAtual: number
   onSelecionarDia: (date: Date) => void
 }) {
   const months = React.useMemo(
@@ -98,15 +100,28 @@ const GradeDeMeses = React.memo(function GradeDeMeses({
     [year]
   )
 
+  const mesAtualRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    mesAtualRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+  }, [])
+
   return (
     <div className="grid h-full grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {months.map((month) => {
         const nomeMes = month.toLocaleString("pt-BR", { month: "long" })
+        const isAtual = month.getMonth() === mesAtual
 
         return (
           <div
             key={month.toISOString()}
-            className="flex flex-col items-center rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 shadow-sm"
+            ref={isAtual ? mesAtualRef : undefined}
+            className={cn(
+              "flex flex-col items-center rounded-2xl border p-4 shadow-sm",
+              isAtual
+                ? "border-green-300 bg-green-50/70 ring-2 ring-green-200"
+                : "border-zinc-200 bg-zinc-50/70"
+            )}
           >
             <div className="mb-4 text-center text-base font-bold capitalize text-zinc-800">
               {nomeMes}
@@ -123,6 +138,8 @@ const GradeDeMeses = React.memo(function GradeDeMeses({
               components={{
                 DayButton: ({ children, modifiers, day, className, ...props }) => {
                   const valor = getValorDoDia(day.date)
+                  const abaixoDaJornada = valor && paraMinutos(valor) < JORNADA_MINUTOS
+
                   return (
                     <CalendarDayButton
                       day={day}
@@ -130,9 +147,6 @@ const GradeDeMeses = React.memo(function GradeDeMeses({
                       {...props}
                       className={cn(
                         className,
-                        // Sem destaque de dia "focado" pelo day-picker: cada mês tem o
-                        // seu próprio estado e sobravam bordas em vários meses ao mesmo
-                        // tempo. O foco real de teclado continua no focus-visible.
                         "cursor-pointer group-data-[focused=true]/day:border-transparent group-data-[focused=true]/day:ring-0"
                       )}
                     >
@@ -140,7 +154,10 @@ const GradeDeMeses = React.memo(function GradeDeMeses({
                         {children}
                       </span>
                       {!modifiers.outside && valor && (
-                        <span className="mt-1 text-[10px] font-semibold leading-none text-green-600">
+                        <span className={cn(
+                          "mt-1 text-[10px] font-semibold leading-none",
+                          abaixoDaJornada ? "text-red-600" : "text-green-600"
+                        )}>
                           {valor}
                         </span>
                       )}
@@ -234,7 +251,7 @@ export function CalendarCustomDays() {
 
       <Card className="flex-1 border-0 bg-white/90 shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
         <CardContent className="h-full p-4 md:p-6">
-          <GradeDeMeses year={year} onSelecionarDia={selecionarDia} />
+          <GradeDeMeses year={year} mesAtual={hoje.getMonth()} onSelecionarDia={selecionarDia} />
         </CardContent>
       </Card>
 
